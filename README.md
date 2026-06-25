@@ -9,9 +9,12 @@ The application is structured to support both local Windows execution and contai
     .
     ├── config.yaml                     # Client abstraction layer configuration
     ├── code/
-    │   ├── app.py                      # Main Streamlit application script
+    │   ├── app.py                      # Base Streamlit application script
+    │   ├── main_app.py                 # Advanced Streamlit app (bounds, response curves, forecasting)
     │   ├── data_loader.py              # Logic for GCS authentication and data fetching
     │   ├── session_manager.py          # Session state and URL parameter handling
+    │   ├── test_loader.py              # Local testing script
+    │   ├── scene_mx/                   # Custom local modules for advanced MMM modeling
     │   ├── style/
     │   │   └── style.css               # Custom styling
     │   └── images/                     # Logos and assets

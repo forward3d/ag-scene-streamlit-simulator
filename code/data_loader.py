@@ -19,18 +19,21 @@ def load_config(config_path=ROOT_DIR / "config.yaml"):
 
 @st.cache_resource
 def get_meridian_resource():
-    """Imports and initializes the Meridian client."""
+    """Imports and initializes the Meridian client and custom scene_mx logic."""
     modules = types.SimpleNamespace()
     
+    # --- 1. Meridian Constants (Required for get_summary_df) ---
+    from meridian import constants
+    modules.constants = constants
+    
+    # --- 2. Standard Meridian Modules ---
     from meridian.data import test_utils, load
     modules.test_utils = test_utils
     modules.load = load
     
-    from meridian.model import model
+    from meridian.model import model, spec, prior_distribution
     modules.model = model
-    from meridian.model import spec
     modules.spec = spec
-    from meridian.model import prior_distribution
     modules.prior_distribution = prior_distribution
 
     from meridian.analysis import optimizer, analyzer, visualizer, summarizer, formatter
@@ -39,6 +42,12 @@ def get_meridian_resource():
     modules.visualizer = visualizer
     modules.summarizer = summarizer
     modules.formatter = formatter
+    
+    # --- 3. Custom Local Scene MX Modules ---
+    from scene_mx import get_optimized_df, get_summary_df, get_response_curves_df
+    modules.get_optimized_df = get_optimized_df
+    modules.get_summary_df = get_summary_df
+    modules.get_response_curves_df = get_response_curves_df
     
     time.sleep(3) 
     return modules

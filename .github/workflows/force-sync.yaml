@@ -1,0 +1,100 @@
+name: force sync template
+
+on:
+  workflow_dispatch:
+
+jobs:
+  find-repos:
+    name: find-repos
+    runs-on: ubuntu-latest
+    if: ${{ endsWith(github.repository, '-template') }}
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: generate-token
+        with:
+          app-id: ${{ vars.AG_OPS_TEMPLATES_APP_ID }}
+          private-key: ${{ secrets.AG_OPS_TEMPLATES_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: find-template-repos
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            let hasNextPage = true;
+            let endCursor = null;
+            let repoNodes = [];
+
+            while (hasNextPage) {
+              let cursorArg = '';
+              if (endCursor !== null) {
+                cursorArg = `, after: "${endCursor}"`;
+              }
+
+              const query = `query {
+                organization(login: "${{ github.repository_owner }}") {
+                  repositories(first: 50, isArchived: false${cursorArg}) {
+                    nodes {
+                      name
+                      templateRepository {
+                        name
+                      }
+                    }
+                    pageInfo {
+                      endCursor
+                      hasNextPage
+                    }
+                  }
+                }
+              }`;
+
+              const result = await github.graphql(query);
+              const repositories = result.organization.repositories;
+              repoNodes = repoNodes.concat(repositories.nodes);
+              hasNextPage = repositories.pageInfo.hasNextPage;
+              endCursor = repositories.pageInfo.endCursor;
+            }
+
+            const filteredResult = repoNodes.filter(repo => repo.templateRepository && repo.templateRepository.name === "${{ github.event.repository.name }}");
+            const repoNames = filteredResult.map(repo => repo.name);
+            console.log(repoNames);
+            return JSON.stringify(repoNames);
+
+      - name: Set matrix output
+        id: set-matrix
+        run: |
+          echo "matrix=$(jq -cn --argjson repositories ${{ steps.find-template-repos.outputs.result }} '{repos: $repositories}')" >> $GITHUB_OUTPUT
+
+  run-action:
+    name: run-action
+    needs: find-repos
+    if: needs.find-repos.outputs.matrix != ''
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 6
+      matrix: ${{ fromJson(needs.find-repos.outputs.matrix) }}
+
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: generate-token
+        with:
+          app-id: ${{ vars.AG_OPS_TEMPLATES_APP_ID }}
+          private-key: ${{ secrets.AG_OPS_TEMPLATES_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ matrix.repos }}
+
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: run-action
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            const result = await github.rest.actions.createWorkflowDispatch({
+              owner: '${{ github.repository_owner }}',
+              repo: '${{ matrix.repos }}',
+              workflow_id: 'template-sync.yaml',
+              ref: 'main'
+            })
+            console.log(result);

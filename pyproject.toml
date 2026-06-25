@@ -1,0 +1,28 @@
+[project]
+name = "ag-stage-container-streamlit-meridian"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "arviz<1.0.0",
+    "authlib>=1.6.6",
+    "fsspec>=2026.1.0",
+    "gcsfs>=2026.1.0",
+    "google-api-python-client>=2.188.0",
+    "google-cloud-storage>=3.8.0",
+    "google-meridian==1.4.0",
+    "graphviz>=0.21",
+    "h11==0.16.0",
+    "matplotlib>=3.10.8",
+    "numpy>=1.23.0,<2.3",
+    "packaging>=20.0",
+    "pandas==2.3.3",
+    "plotly>=6.5.2",
+    "protobuf>=6.31.1",
+    "pyyaml>=6.0.3",
+    "seaborn>=0.13.2",
+    "streamlit>=1.53.0",
+    "tensorflow==2.20.0",
+    "tensorflow-probability==0.25.0",
+]

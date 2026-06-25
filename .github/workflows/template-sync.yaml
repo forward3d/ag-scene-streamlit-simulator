@@ -1,0 +1,52 @@
+name: sync template
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  repo-sync:
+    name: sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: generate-token
+        with:
+          app-id: ${{ vars.AG_OPS_TEMPLATES_APP_ID }}
+          private-key: ${{ secrets.AG_OPS_TEMPLATES_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Get templateRepository
+        id: get-template-tepository
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          result-encoding: string
+          script: |
+            const query = `query($name:String!) {
+              organization(login: "${{ github.repository_owner }}") {
+                repository(name:$name) { templateRepository { nameWithOwner } }
+              }
+             }`;
+             const result = await github.graphql(query, { name: context.repo.repo })
+             return result.organization.repository.templateRepository.nameWithOwner
+
+      - name: actions-template-sync
+        uses: AndreasAugustin/actions-template-sync@8a0f668b83c32a0f673353086d74f12b8853d4f5 # v2.5.3
+        with:
+          source_gh_token: ${{ steps.generate-token.outputs.token }}
+          target_gh_token: ${{ steps.generate-token.outputs.token }}
+          source_repo_path: ${{ steps.get-template-tepository.outputs.result }}
+          pr_commit_msg: "chore(template): merge template changes :up:"
+          pr_title: "chore(template): merge template changes :up:"
+          git_user_email: "developers@assemblyglobal.com"
+          git_user_name: "ag-ops-template[bot]"
+          is_pr_cleanup: true
+          gpg_private_key: ${{ secrets.AG_OPS_TEMPLATES_GPG_PRIVATE_KEY }}

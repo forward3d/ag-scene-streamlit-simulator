@@ -1,0 +1,58 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "abandonments:recommended",
+    "config:recommended",
+    ":configMigration",
+    "customManagers:dockerfileVersions",
+    "helpers:pinGitHubActionDigestsToSemver",
+    ":maintainLockFilesWeekly",
+    ":pinDevDependencies",
+    "security:minimumReleaseAgeNpm",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(fix)"
+  ],
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": [
+      "security"
+    ],
+    "automerge": false
+  },
+  "prHourlyLimit": 0,
+  "rebaseWhen": "behind-base-branch",
+  "packageRules": [
+    {
+      "description": "No minimum release age for internal assemblyglobal packages",
+      "matchSourceUrls": [
+        "https://github.com/assemblyglobal/**",
+        "https://rubygems.pkg.github.com/assemblyglobal/**"
+      ],
+      "matchPackageNames": [
+        "/^@assemblyglobal//",
+        "ghcr.io/assemblyglobal/{/,}**"
+      ],
+      "minimumReleaseAge": "0 days"
+    },
+    {
+      "description": "Apply 3-day minimum release age to non-npm packages",
+      "matchDatasources": [
+        "bundler",
+        "docker",
+        "github-releases",
+        "github-tags",
+        "pypi",
+        "terraform-provider"
+      ],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "matchDatasources": [
+        "deb"
+      ],
+      "separateMajorMinor": false,
+      "groupName": "debian packages",
+      "groupSlug": "debian"
+    }
+  ]
+}

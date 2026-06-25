@@ -1,0 +1,190 @@
+/* style/style.css */
+body {
+    background: rgb(30, 26, 52);
+}
+
+/* Branding side */
+.branding-container {
+    position: relative;
+    height: 100vh; 
+    width: 100%;
+    color: white;
+    overflow: hidden;
+}
+
+.branding-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.branding-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 3rem;
+}
+
+.branding-title {
+    font-size: 3rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 1rem;
+}
+
+.branding-subtitle {
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+
+/* Login side */
+.login-wrapper {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100vh;
+    padding: 2rem;
+    background-color: white;
+}
+
+.login-wrapper h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    margin-top: 2rem;
+}
+
+.login-wrapper .subtitle {
+    color: #6b7280;
+    margin-bottom: 2rem;
+}
+
+/* Customizing Streamlit buttons */
+div[data-testid="stButton"] > button[key="google_login"],
+div[data-testid="stButton"] > button[key="auth0_login"] {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 0.75rem !important;
+    background-color: white !important;
+    color: #374151 !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 0.5rem !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease-in-out;
+}
+
+div[data-testid="stButton"] > button:hover {
+    border-color: #9ca3af !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.terms-text {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-align: center;
+    margin-top: 3rem;
+}
+
+.terms-text a {
+    text-decoration: underline;
+    color: #4b5563;
+}
+
+/* --- NEW STYLES ADDED BELOW --- */
+
+/* Define variables */
+:root {
+    --header-height: 100px; 
+    --header-bg: #1e1a34;
+    --sidebar-bg: #2A263F;
+    --text-color: #FFFFFF;
+    --highlight-color: #4B4E6D;
+}
+
+/* Remove default padding from the app's root */
+.stApp {
+    padding-top: 0px !important;
+}
+
+/* 1. Style the Top Header */
+[data-testid="stHeader"] {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--header-height);
+    background-color: var(--header-bg);
+    z-index: 1000; 
+    display: flex;
+    align-items: center;
+    padding: 0 2rem;
+}
+
+/* 2. Push the entire sidebar down below the header */
+[data-testid="stSidebar"] {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    height: calc(100% - var(--header-height)); 
+    background-color: var(--sidebar-bg);
+}
+
+/* Remove top margin from the first element in the sidebar */
+[data-testid="stSidebar"] [data-testid="stBlock"]:first-child {
+    margin-top: 0.5rem !important;
+}
+
+/* 3. --- Styling for st.file_uploader --- */
+[data-testid="stFileUploader"] section {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+[data-testid="stFileUploader"] section:hover {
+    border-color: var(--highlight-color);
+}
+[data-testid="stFileUploader"] section small {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+ 
+/* This specifically targets the "Browse files" button inside the uploader */
+[data-testid="stFileUploader"] button {
+    background-color: var(--highlight-color);
+    color: white; /* Set text color to white */
+    border: none;
+}
+[data-testid="stFileUploader"] button:hover {
+    background-color: #5a5d80;
+    color: white;
+    border: none;
+}
+
+/* 4. Push the main page content down below the header */
+[data-testid="stAppViewContainer"] > section {
+    padding-top: 10px;
+}
+
+/* --- NEW CSS TO POSITION THE LOGO --- */
+/* Create a custom class for our injected logo container */
+.logo-container {
+    position: fixed;
+    top: 20px; /* Adjust this to move the logo up/down */
+    left: 2rem; /* Aligns with the header's left padding */
+    z-index: 1001; /* Make sure it's on top of the header */
+}
+/* Style the logo image itself */
+.logo-container img {
+    height: 60px; /* Adjust the height of your logo */
+}
+
+/* General text and color styling */
+[data-testid="stHeader"] *, [data-testid="stSidebar"] * {
+    color: var(--text-color);
+}
+[data-testid="stHeader"] [data-testid="baseLinkButton-header"]:hover {
+    color: #E0E0E0;
+}

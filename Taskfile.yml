@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+dotenv:
+  - '.taskfile.env'
+  - '.taskfile.env.local'
+
+includes:
+  custom:
+    taskfile: ./customTaskfile.yml
+    optional: true
+
+tasks:
+  build-docker:
+    cmds:
+      - echo "Build Docker - START"
+      - task: stop-app
+      - docker tag {{.APP_TAG_LATEST}} {{.APP_TAG_OLDER}} || true
+      - |
+        docker buildx build \
+          -t {{.APP_TAG_LATEST}} \
+          --secret id=GITHUB_PACKAGES_TOKEN,env=GITHUB_PACKAGES_TOKEN \
+          --platform={{.PLATFORM}} \
+          --load \
+          .
+      - docker rmi {{.APP_TAG_OLDER}} || true
+      - echo "Build Docker - END"
+    vars:
+      PLATFORM:
+        sh: |
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "arm64" ]; then
+            echo "linux/arm64"
+          else
+            echo "linux/amd64"
+          fi
+  run-app:
+    cmds:
+      - task: stop-app
+      - sed 's/"//g' $ENV_FILE > .sed.env
+      - docker run {{.IT_OPT}} -p $HOST_PORT:$CONTAINER_PORT --add-host localhost:host-gateway --rm --name {{.APP}} --env-file .sed.env {{.APP_TAG_LATEST}} {{.CUSTOM_CMD}}
+      - rm .sed.env
+    preconditions:
+      - sh: test -f $ENV_FILE
+        msg: "No $ENV_FILE file found. Will skip"
+    vars:
+      IT_OPT:
+        sh: |
+          if [ "{{.CLI_ARGS}}" ]; then
+            echo "-it"
+          fi
+      CUSTOM_CMD: "{{.CLI_ARGS}}"
+
+  stop-app:
+    cmds:
+      - docker stop {{.APP}} || true
+      - rm .sed.env || true

@@ -1,0 +1,16 @@
+[client]
+showErrorDetails = true
+showErrorTraceback = true
+
+[server]
+baseUrlPath = "/scenemx-streamlit"
+enableXsrfProtection = false
+enableCORS = false
+
+# --- CUSTOMIZE THIS SECTION ---
+[theme]
+base = "dark"
+# primaryColor = "#4B4E6D"         # Your custom highlight color
+# backgroundColor = "#1e1a34"      # Your app's main background
+# secondaryBackgroundColor = "#2A263F" # Your sidebar background
+textColor = "#FFFFFF"

@@ -1,0 +1,15 @@
+# file removed by template
+# waiting for bug fix https://github.com/AndreasAugustin/actions-template-sync/issues/619
+# could be removed if it does not exist in the template
+name: commit-linting
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  empty_job:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "workflow removed in template"

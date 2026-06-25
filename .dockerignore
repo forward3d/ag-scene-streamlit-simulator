@@ -1,0 +1,37 @@
+.release-please-manifest.json
+.gitignore
+.dockerignore
+*.md
+Dockerfile
+renovate.json
+.github
+.vscode
+
+
+# Ignore the virtual environment (This is the #1 culprit, usually hundreds of MBs)
+.venv/
+venv/
+
+# Ignore git history
+.git/
+
+# Ignore local data (unless you specifically need it baked into the image)
+# data/
+
+# Ignore IDE settings
+.idea/
+
+# Ignore python cache
+__pycache__/
+*.pyc
+
+# Exclude sensitive data and models
+data/
+*.csv
+*.pkl
+
+# Exclude virtual environments and cache
+.venv/
+__pycache__/
+.pytest_cache/
+.git/

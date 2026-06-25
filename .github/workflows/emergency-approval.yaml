@@ -1,0 +1,144 @@
+name: emergency approval
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to approve"
+        required: true
+        type: string
+      justification:
+        description: "Reason for emergency approval"
+        required: true
+        type: choice
+        options:
+          - "Production Outage - customer impact"
+          - "Security Vulnerability - immediate fix required"
+          - "Critical Bug - service degraded"
+          - "On-call Emergency - no approvers available"
+          - "Timezones/Vacations - no approvers available"
+          - "Other"
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  emergency-approve:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: generate-token
+        with:
+          app-id: ${{ vars.AG_APPROVALS_APP_ID }}
+          private-key: ${{ secrets.AG_APPROVALS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Validate PR exists
+        id: validate-pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            try {
+              const pr = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: ${{ inputs.pr_number }}
+              });
+
+              if (pr.data.state !== 'open') {
+                const msg = `PR #${{ inputs.pr_number }} is not open (state: ${pr.data.state})`;
+                core.setFailed(msg);
+                return;
+              }
+
+              // Check if the PR author is the same as the workflow trigger
+              if (pr.data.user.login !== '${{ github.actor }}') {
+                const msg = `PR #${{ inputs.pr_number }} is owned by ${pr.data.user.login}, but emergency approval was requested by ${{ github.actor }}. You can only request emergency approval for your own PRs.`;
+                core.setFailed(msg);
+                return;
+              }
+
+              const reviews = await github.rest.pulls.listReviews({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: ${{ inputs.pr_number }}
+              });
+
+              const approvals = reviews.data.filter(review => review.state === 'APPROVED');
+              const msg = `PR #${{ inputs.pr_number }} currently has ${approvals.length} approvals`;
+              console.log(msg);
+
+              return {
+                title: pr.data.title,
+                author: pr.data.user.login,
+                url: pr.data.html_url,
+                approvals: approvals.length
+              };
+            } catch (error) {
+              core.setFailed(`Failed to fetch PR #${{ inputs.pr_number }}: ${error.message}`);
+            }
+
+      - name: Submit emergency approval
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            const prData = ${{ steps.validate-pr.outputs.result }};
+
+            const reviewBody = `🚨 **EMERGENCY APPROVAL GRANTED** 🚨
+
+            This PR has been approved under emergency procedures.
+
+            **Justification:** ${{ inputs.justification }}
+            **Approved by:** ${{ github.actor }}
+            **Time:** ${new Date().toISOString()}
+
+            ⚠️ **Compliance Review Required:** Post-facto approval needed for audit compliance.`;
+
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ inputs.pr_number }},
+              event: 'APPROVE',
+              body: reviewBody
+            });
+
+            console.log(`Emergency approval granted for PR #${{ inputs.pr_number }}`);
+
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.EMERGENCY_APPROVAL_SLACK_BOT_OAUTH_TOKEN }}
+          payload: |
+            channel: ${{ vars.EMERGENCY_APPROVAL_SLACK_CHANNEL_ID }}
+            text: "🚨 Emergency PR Approval Granted"
+            blocks:
+              - type: "header"
+                text:
+                  type: "plain_text"
+                  text: "🚨 Emergency PR Approval Granted"
+              - type: "section"
+                fields:
+                  - type: "mrkdwn"
+                    text: "*PR:* <${{ fromJson(steps.validate-pr.outputs.result).url }}|#${{ inputs.pr_number }} - ${{ fromJson(steps.validate-pr.outputs.result).title }}>"
+                  - type: "mrkdwn"
+                    text: "*Repository:* ${{ github.repository }}"
+                  - type: "mrkdwn"
+                    text: "*PR Author:* ${{ fromJson(steps.validate-pr.outputs.result).author }}"
+                  - type: "mrkdwn"
+                    text: "*Triggered by:* ${{ github.actor }}"
+                  - type: "mrkdwn"
+                    text: "*Justification:* ${{ inputs.justification }}"
+                  - type: "mrkdwn"
+                    text: "*Time:* $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "⚠️ *Action Required:* Post-facto approval needed for compliance review"

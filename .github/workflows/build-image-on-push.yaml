@@ -1,0 +1,149 @@
+name: build image push image
+
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+
+env:
+  HARBOR_HOSTNAME: ${{ vars.HARBOR_HOSTNAME }}
+  HARBOR_ACCOUNT_USERNAME: ${{ vars.HARBOR_ACCOUNT_USERNAME }}
+  HARBOR_ACCOUNT_PASSWORD: ${{ secrets.HARBOR_ACCOUNT_PASSWORD }}
+  RELEASE: ${{ github.event.release.tag_name }}
+
+jobs:
+  build-and-push-image:
+    if: "!endsWith(github.repository, '-template') && (((github.event.action == 'opened' || github.event.action == 'synchronize') && !contains(github.actor, '[bot]')) || (github.event.action == 'closed' && github.event.pull_request.merged == true))"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check if Dockerfile exists and is not empty
+        id: check-dockerfile
+        run: |
+          if [ -s Dockerfile ]; then
+            echo "exists=true" >> $GITHUB_ENV
+          else
+            echo "exists=false" >> $GITHUB_ENV
+          fi
+
+      - name: Log in to the Harbor Container registry
+        if: env.exists == 'true'
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ${{ env.HARBOR_HOSTNAME }}
+          username: ${{ env.HARBOR_ACCOUNT_USERNAME }}
+          password: ${{ secrets.HARBOR_ACCOUNT_PASSWORD }}
+
+      - name: Log in to the GitHub Container registry
+        if: env.exists == 'true'
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine Repo Prefix and Modify Name
+        if: env.exists == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: harbor-repo-name
+        with:
+          script: |
+            const repoName = "${{ github.repository }}";
+            const parts = repoName.split('-');
+            const purpose = `docker_${parts[1]}`;
+            const name = parts.slice(3).join('-');
+            core.setOutput('purpose', purpose);
+            core.setOutput('name', name);
+
+      - name: Determine Docker Tag
+        if: env.exists == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: docker-tag
+        with:
+          script: |
+            if ('${{ github.event.action }}' === 'closed' && ${{ github.event.pull_request.merged }}) {
+              const destinationBranch = '${{ github.event.pull_request.base.ref }}';
+              core.setOutput('ghcr_tag', destinationBranch);
+              core.setOutput('harbor_tag', `branch-${destinationBranch}`);
+            } else {
+              const branchName = "branch-${{ github.head_ref || github.ref_name }} "
+              const branch_tag = branchName.replace(/\//g, '-');
+              core.setOutput('ghcr_tag', branch_tag);
+              core.setOutput('harbor_tag', branch_tag);
+            }
+
+      - name: Determine Repo Prefix and Modify Name
+        if: env.exists == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: ghcr-repo-name
+        with:
+          script: |
+            const repoName = "${{ github.repository }}";
+            const parts = repoName.split('-');
+            const containerIndex = parts.indexOf('container');
+            const name = parts.slice(containerIndex + 1).join('-');
+            core.setOutput('name', name);
+
+      - name: Extract metadata GitHub (tags, labels) for Docker
+        if: env.exists == 'true'
+        id: ghcr-meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: "ghcr.io/${{ github.repository_owner }}/container/${{ steps.ghcr-repo-name.outputs.name }}"
+          tags: "${{ steps.docker-tag.outputs.ghcr_tag }}"
+
+      - name: Extract metadata Harbor (tags, labels) for Docker
+        if: env.exists == 'true'
+        id: harbor-meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: "${{ env.HARBOR_HOSTNAME }}/${{ steps.harbor-repo-name.outputs.purpose }}/${{ steps.harbor-repo-name.outputs.name }}"
+          tags: "${{ steps.docker-tag.outputs.harbor_tag }}"
+
+      - name: Build and push Docker image GitHub
+        id: ghcr-push
+        if: env.exists == 'true'
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          push: ${{ !contains(github.actor, '[bot]') }}
+          tags: ${{ steps.ghcr-meta.outputs.tags }}
+          labels: ${{ steps.ghcr-meta.outputs.labels }}
+          build-args: |
+            RELEASE_VERSION=${{ steps.docker-tag.outputs.ghcr_tag }}
+            GIT_REPOSITORY_URL=${{ github.event.repository.html_url }}
+            GIT_COMMIT_SHA=${{ github.sha }}
+          secrets: |
+            "GITHUB_PACKAGES_TOKEN=${{ secrets.GITHUB_TOKEN }}"
+            "FORWARDPMX_GITHUB_PACKAGES_TOKEN=${{ secrets.FORWARDPMX_GITHUB_PACKAGES_TOKEN }}"
+
+      - name: Build and push Docker image Harbor
+        if: env.exists == 'true'
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          push: ${{ !contains(github.actor, '[bot]') }}
+          tags: ${{ steps.harbor-meta.outputs.tags }}
+          labels: ${{ steps.harbor-meta.outputs.labels }}
+          build-args: |
+            RELEASE_VERSION=${{ steps.docker-tag.outputs.harbor_tag }}
+            GIT_REPOSITORY_URL=${{ github.event.repository.html_url }}
+            GIT_COMMIT_SHA=${{ github.sha }}
+          secrets: |
+            "GITHUB_PACKAGES_TOKEN=${{ secrets.GITHUB_TOKEN }}"
+            "FORWARDPMX_GITHUB_PACKAGES_TOKEN=${{ secrets.FORWARDPMX_GITHUB_PACKAGES_TOKEN }}"
+
+      - name: Generate artifact attestation
+        if: env.exists == 'true'
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-name: "ghcr.io/${{ github.repository_owner }}/container/${{ steps.ghcr-repo-name.outputs.name }}"
+          subject-digest: ${{ steps.ghcr-push.outputs.digest }}
+          push-to-registry: ${{ !contains(github.actor, '[bot]') }}

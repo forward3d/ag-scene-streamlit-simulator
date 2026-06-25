@@ -1,0 +1,32 @@
+name: auto merge
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  mark-pr:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'ag-ops-templates[bot]'
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: generate-token
+        with:
+          app-id: ${{ vars.AG_OPS_TEMPLATES_APP_ID }}
+          private-key: ${{ secrets.AG_OPS_TEMPLATES_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: enable auto merge
+        run: gh pr merge --squash --auto --delete-branch $PR_NUMBER
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}

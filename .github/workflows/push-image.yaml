@@ -1,0 +1,172 @@
+name: push image
+
+on:
+  release:
+    types:
+      - published
+
+env:
+  HARBOR_HOSTNAME: ${{ vars.HARBOR_HOSTNAME }}
+  HARBOR_ACCOUNT_USERNAME: ${{ vars.HARBOR_ACCOUNT_USERNAME }}
+  HARBOR_ACCOUNT_PASSWORD: ${{ secrets.HARBOR_ACCOUNT_PASSWORD }}
+  RELEASE: ${{ github.event.release.tag_name }}
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ${{ env.HARBOR_HOSTNAME }}
+          username: ${{ env.HARBOR_ACCOUNT_USERNAME }}
+          password: ${{ env.HARBOR_ACCOUNT_PASSWORD }}
+
+      - name: Log in to the GitHub Container registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine Repo Prefix and Modify Name
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: harbor-repo-name
+        with:
+          script: |
+            const repoName = "${{ github.repository }}";
+            const parts = repoName.split('-');
+            const purpose = `docker_${parts[1]}`;
+            const name = parts.slice(3).join('-');
+            core.setOutput('purpose', purpose);
+            core.setOutput('name', name);
+
+      - name: Determine Repo Prefix and Modify Name
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: ghcr-repo-name
+        with:
+          script: |
+            const repoName = "${{ github.repository }}";
+            const parts = repoName.split('-');
+            const containerIndex = parts.indexOf('container');
+            const name = parts.slice(containerIndex + 1).join('-');
+            core.setOutput('name', name);
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: harbor-meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: "${{ env.HARBOR_HOSTNAME }}/${{ steps.harbor-repo-name.outputs.purpose }}/${{ steps.harbor-repo-name.outputs.name }}"
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Extract metadata GitHub (tags, labels) for Docker
+        id: ghcr-meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: "ghcr.io/${{ github.repository_owner }}/container/${{ steps.ghcr-repo-name.outputs.name }}"
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push Docker image Harbor
+        id: harbor-push
+        continue-on-error: true
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.harbor-meta.outputs.tags }}
+          labels: ${{ steps.harbor-meta.outputs.labels }}
+          build-args: |
+            RELEASE_VERSION=${{ env.RELEASE }}
+            GIT_REPOSITORY_URL=${{ github.event.repository.html_url }}
+            GIT_COMMIT_SHA=${{ github.sha }}
+          secrets: |
+            "GITHUB_PACKAGES_TOKEN=${{ secrets.GITHUB_TOKEN }}"
+            "FORWARDPMX_GITHUB_PACKAGES_TOKEN=${{ secrets.FORWARDPMX_GITHUB_PACKAGES_TOKEN }}"
+
+      - name: Build and push Docker image GitHub
+        id: ghcr-push
+        continue-on-error: true
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.ghcr-meta.outputs.tags }}
+          labels: ${{ steps.ghcr-meta.outputs.labels }}
+          build-args: |
+            RELEASE_VERSION=${{ env.RELEASE }}
+            GIT_REPOSITORY_URL=${{ github.event.repository.html_url }}
+            GIT_COMMIT_SHA=${{ github.sha }}
+          secrets: |
+            "GITHUB_PACKAGES_TOKEN=${{ secrets.GITHUB_TOKEN }}"
+            "FORWARDPMX_GITHUB_PACKAGES_TOKEN=${{ secrets.FORWARDPMX_GITHUB_PACKAGES_TOKEN }}"
+
+      - name: Generate artifact attestation
+        if: steps.ghcr-push.outcome == 'success'
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-name: "ghcr.io/${{ github.repository_owner }}/container/${{ steps.ghcr-repo-name.outputs.name }}"
+          subject-digest: ${{ steps.ghcr-push.outputs.digest }}
+          push-to-registry: ${{ !contains(github.actor, '[bot]') }}
+
+      - name: Check for Errors
+        id: error
+        if: failure() || steps.harbor-push.outcome == 'failure' || steps.ghcr-push.outcome == 'failure'
+        run: |
+          ERROR_MSG="Workflow failed (check logs for details).\n"
+          if [ "${{ steps.harbor-push.outcome }}" == "failure" ]; then
+            ERROR_MSG="${ERROR_MSG}Harbor Build/Push Failed.\n"
+          fi
+          if [ "${{ steps.ghcr-push.outcome }}" == "failure" ]; then
+            ERROR_MSG="${ERROR_MSG}GHCR Build/Push Failed.\n"
+          fi
+          echo "message=$ERROR_MSG" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification
+        if: failure() || steps.harbor-push.outcome == 'failure' || steps.ghcr-push.outcome == 'failure'
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.APPLY_FAILED_SLACK_BOT_OAUTH_TOKEN }}
+          payload: |
+            channel: ${{ vars.APPLY_FAILED_SLACK_CHANNEL_ID }}
+            text: "❌ Docker Build Workflow Failed"
+            blocks:
+              - type: "header"
+                text:
+                  type: "plain_text"
+                  text: "❌ Docker Build Workflow Failed"
+              - type: "section"
+                fields:
+                  - type: "mrkdwn"
+                    text: "*Repository:* ${{ github.repository }}"
+                  - type: "mrkdwn"
+                    text: "*Branch:* ${{ github.ref_name }}"
+                  - type: "mrkdwn"
+                    text: "*GH Action:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                  - type: "mrkdwn"
+                    text: "*PR Author:* ${{ github.actor }}"
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "*Error Message:*\n```${{ steps.error.outputs.message }}```"
+
+      - name: Fail Workflow on Errors
+        if: failure() || steps.harbor-push.outcome == 'failure' || steps.ghcr-push.outcome == 'failure'
+        run: exit 1

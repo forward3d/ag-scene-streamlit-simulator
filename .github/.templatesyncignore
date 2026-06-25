@@ -1,0 +1,8 @@
+.dockerignore
+.github/CODEOWNERS
+.gitignore
+.release-please-manifest.json
+.taskfile.env
+CHANGELOG.md
+customTaskfile.yml
+README.md

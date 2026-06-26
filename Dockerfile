@@ -23,7 +23,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Runtime stage - minimal image with only runtime dependencies
 # UPDATE: Removed the hardcoded @sha256 to ensure it pulls the latest patched version to pass the security scan
-FROM registry.management.stage.lv-426.tech/dockerhub_cache/python:3.12-slim-bookworm
+# FROM registry.management.stage.lv-426.tech/dockerhub_cache/python:3.12-slim-bookworm
+FROM python:3.12-slim-bookworm
 
 ARG GIT_REPOSITORY_URL
 ARG GIT_COMMIT_SHA

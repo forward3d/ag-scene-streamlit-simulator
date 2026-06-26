@@ -1,0 +1,16 @@
+# Build for linux/amd64 (required for Cloud Run).
+# Run: gcloud builds submit --config=cloudbuild.yaml --project=ag-scene-app-dev
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--platform=linux/amd64'
+      - '-t'
+      - '${_IMAGE}'
+      - '.'
+images:
+  - '${_IMAGE}'
+substitutions:
+  _IMAGE: 'us-central1-docker.pkg.dev/ag-scene-app-dev/ag-scene-streamlit-simulator/ag-scene-streamlit-simulator:latest'
+options:
+  logging: CLOUD_LOGGING_ONLY

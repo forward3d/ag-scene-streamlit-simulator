@@ -33,12 +33,18 @@ ENV DD_GIT_REPOSITORY_URL=${GIT_REPOSITORY_URL}
 ENV DD_GIT_COMMIT_SHA=${GIT_COMMIT_SHA}
 
 # renovate: datasource=deb depName=g++ registryUrl=https://deb.debian.org/debian?release=bookworm&components=main&binaryArch=amd64
-ENV G_PLUS_PLUS_VERSION="4:12.2.0-3"
+# ENV G_PLUS_PLUS_VERSION="4:12.2.0-3"
+
+# RUN apt-get update -qq && \
+#     apt-get upgrade -y && \
+#     apt-get install -y --no-install-recommends \
+#     g++=${G_PLUS_PLUS_VERSION} \
+#     && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 RUN apt-get update -qq && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
-    g++=${G_PLUS_PLUS_VERSION} \
+    g++ \
     && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Set the working directory for the application.

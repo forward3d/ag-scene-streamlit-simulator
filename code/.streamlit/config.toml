@@ -3,7 +3,7 @@ showErrorDetails = true
 showErrorTraceback = true
 
 [server]
-baseUrlPath = "/scenemx-streamlit"
+# baseUrlPath = "/scenemx-streamlit"
 enableXsrfProtection = false
 enableCORS = false
 

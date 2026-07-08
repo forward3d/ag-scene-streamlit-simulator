@@ -10,6 +10,6 @@ def init_session():
         st.session_state.smmm_model = None
         
     # Read the organization and brand from the URL parameters
-    # Example URL: http://localhost:8501/?org=assembly&brand=test_brand
-    st.session_state.identity_org = st.query_params.get("org", "unknown")
-    st.session_state.identity_brand = st.query_params.get("brand", "unknown")
+    # Example URL: http://localhost:8501/?organisation_slug=assembly&brand_slug=test_brand
+    st.session_state.identity_organisation_slug = st.query_params.get("organisation_slug", "unknown")
+    st.session_state.identity_brand_slug = st.query_params.get("brand_slug", "unknown")

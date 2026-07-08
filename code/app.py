@@ -22,7 +22,8 @@ import base64
 
 # --- Import our new modules ---
 from session_manager import init_session
-from data_loader import load_client_dataset, load_client_model, get_meridian_resource
+from data_loader import load_client_dataset
+from meridian_loader import load_client_model, get_meridian_resource
 
 # For Multi Processing
 import pickle
@@ -102,7 +103,7 @@ def selector_filter(uploaded_file, file_path):
             geo_option = 'national_geo'
 
     with col2:
-        date_start = st.date_input("Start Date", pd.to_datetime('2023-10-30'))
+        date_start = st.date_input("Start Date", pd.to_datetime(data[date_column]).min(), min_value=pd.to_datetime(data[date_column]).min())
 
     with col3:
         date_end = st.date_input("End Date", pd.to_datetime(data[date_column]).max(), max_value=pd.to_datetime(data[date_column]).max()) 
@@ -382,8 +383,8 @@ else:
 
 # --- App Logic & Routing ---
 init_session()
-org = st.session_state.identity_org
-brand = st.session_state.identity_brand
+org = st.session_state.identity_organisation_slug
+brand = st.session_state.identity_brand_slug
 
 meridian = get_meridian_resource()
 
@@ -403,12 +404,16 @@ with st.sidebar:
 # Gatekeeper: Halt execution if no valid organization/brand is supplied in URL
 if org == "unknown" or brand == "unknown":
     st.title("Welcome to the Scene MX Dashboard")
-    st.warning("⚠️ No valid client configuration detected.")
-    st.info("Please provide a valid organization and brand in the URL. Example: `/?org=assembly&brand=test_brand`")
+    st.warning("""
+    **No valid client configuration detected.**
+
+    Please provide a valid organization and brand in the URL. 
+    Example: `/?organisation_slug=assembly&brand_slug=test_brand`
+    """)
     st.stop()
 
 st.title(f"Scene MX Dashboard - {brand.replace('_', ' ').title()}")
-st.subheader(f'Welcome, viewing data for {org.upper()}')
+st.subheader(f'Welcome, Viewing Data For {org.upper()}')
 
 
 # --- Load Dataset Logic ---

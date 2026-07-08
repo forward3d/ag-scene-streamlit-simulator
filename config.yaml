@@ -3,7 +3,7 @@ clients:
     test_brand:
       gcp_project_id: "ag-stage-app-staging"
       bucket_name: "dundermifflin-dundermifflin-data-5rv8"
-      gcs_file_key: "scene/dataset/generic/geo_all_channels.csv"
-      gcs_model_key: "scene/models/generic/meridian_demo_speed-up-optimization.pkl"
-      local_data_path: "data/geo_all_channels.csv"
+      gcs_file_key: "scene/data/input/generic/generic_geo_all_channels.csv"
+      gcs_model_key: "scene/model/generic/meridian_demo_speed-up-optimization.pkl"
+      local_data_path: "data/generic_geo_all_channels.csv"
       local_model_path: "data/meridian_demo_speed-up-optimization.pkl"

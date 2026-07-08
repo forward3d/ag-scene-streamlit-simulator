@@ -6,3 +6,10 @@
 CHANGELOG.md
 customTaskfile.yml
 README.md
+code/app.py
+config.yaml
+pyproject.toml
+code/.streamlit/config.toml
+code/.streamlit/authorized_users.txt
+data/
+.github/workflows/template-sync.yaml

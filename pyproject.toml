@@ -26,3 +26,14 @@ dependencies = [
     "tensorflow==2.20.0",
     "tensorflow-probability==0.25.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.15.20",
+]
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "code"
+]

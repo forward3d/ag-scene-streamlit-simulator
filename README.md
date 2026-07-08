@@ -11,7 +11,8 @@ The application is structured to support both local Windows execution and contai
     ├── code/
     │   ├── app.py                      # Base Streamlit application script
     │   ├── main_app.py                 # Advanced Streamlit app (bounds, response curves, forecasting)
-    │   ├── data_loader.py              # Logic for GCS authentication and data fetching
+    │   ├── data_loader.py              # Generic GCS-first data loading and local fallback
+    │   ├── meridian_loader.py          # App-specific Meridian model loading logic
     │   ├── session_manager.py          # Session state and URL parameter handling
     │   ├── test_loader.py              # Local testing script
     │   ├── scene_mx/                   # Custom local modules for advanced MMM modeling
@@ -42,8 +43,8 @@ The application is structured to support both local Windows execution and contai
    
     * gcloud auth application-default login --project=ag-stage-app-staging
     * set GOOGLE_APPLICATION_CREDENTIALS=%APPDATA%\gcloud\application_default_credentials.json
-    * python -m streamlit run Test_Streamlit.py
-        * **_Note_:**  http://localhost:8501/?org=assembly&brand=test_brand to see the data and model being loaded - otherwise its **Result Unknown**
+    * python -m streamlit run code/app.py
+        * **_Note_:**  http://localhost:8501/?organisation_slug=assembly&brand_slug=test_brand to see the data and model being loaded - otherwise it will throw a configuration warning.
 
 3. **Changing Data Sources:** To add or update a client's data source, modify the config.yaml structure:
 
@@ -64,16 +65,16 @@ The application is structured to support both local Windows execution and contai
 If your deployment environment requires Docker, or if you prefer to run the application in an isolated container, follow these steps (assuming a standard Dockerfile is present in your repository):
 
 1. **Build the Docker image:** 
-     ```
-    docker build -t test-streamlit-app .
+     ```bash
+    docker build -t streamlit-template-app .
      ```
 
 2. **Run the Docker container:** Ensure you map the default Streamlit port (8501) and mount your local GCP credentials into the container so the app can authenticate:
     
-    ```
-    docker run -p 8501:8501 \
-      -v %APPDATA%\gcloud\application_default_credentials.json:/tmp/keys/creds.json:ro \
-      -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/creds.json \
-      test-streamlit-app
+    ```cmd
+    docker run -p 8501:8501 ^
+      -v "%APPDATA%\gcloud\application_default_credentials.json":/tmp/keys/creds.json:ro ^
+      -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/keys/creds.json ^
+      streamlit-template-app
     ```
 

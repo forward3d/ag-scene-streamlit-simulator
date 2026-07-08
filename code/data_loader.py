@@ -1,111 +1,64 @@
+"""Template-generic data loading layer.
+Contains reusable GCS-first loading logic for any Streamlit datascience app.
+App-specific loaders (e.g. Meridian model loading) belong in separate modules.
+Local file fallback is only available in development (APP_ENV=development).
+In production, GCS is the only data source — failures surface immediately to the user.
+Local development setup:
+  Place test data files manually in data/ (gitignored — never commit them).
+  APP_ENV=development is set automatically via .taskfile.env when using `task run-app`.
+"""
+import io
+import os
+from pathlib import Path
 import pandas as pd
 import streamlit as st
 import yaml
-import time
-import tempfile
-import os
-import io
-import types
-from pathlib import Path
 from google.cloud import storage
 
-# Calculate ROOT_DIR relative to this file (code/data_loader.py)
 ROOT_DIR = Path(__file__).parent.parent
+
+def _is_dev_environment() -> bool:
+    """Returns True only when APP_ENV is explicitly set to 'development'."""
+    return os.environ.get("APP_ENV", "").lower() == "development"
 
 def load_config(config_path=ROOT_DIR / "config.yaml"):
     """Reads the YAML configuration file."""
     with open(config_path, "r") as file:
         return yaml.safe_load(file)
 
-@st.cache_resource
-def get_meridian_resource():
-    """Imports and initializes the Meridian client and custom scene_mx logic."""
-    modules = types.SimpleNamespace()
-    
-    # --- 1. Meridian Constants (Required for get_summary_df) ---
-    from meridian import constants
-    modules.constants = constants
-    
-    # --- 2. Standard Meridian Modules ---
-    from meridian.data import test_utils, load
-    modules.test_utils = test_utils
-    modules.load = load
-    
-    from meridian.model import model, spec, prior_distribution
-    modules.model = model
-    modules.spec = spec
-    modules.prior_distribution = prior_distribution
-
-    from meridian.analysis import optimizer, analyzer, visualizer, summarizer, formatter
-    modules.optimizer = optimizer
-    modules.analyzer = analyzer
-    modules.visualizer = visualizer
-    modules.summarizer = summarizer
-    modules.formatter = formatter
-    
-    # --- 3. Custom Local Scene MX Modules ---
-    from scene_mx import get_optimized_df, get_summary_df, get_response_curves_df
-    modules.get_optimized_df = get_optimized_df
-    modules.get_summary_df = get_summary_df
-    modules.get_response_curves_df = get_response_curves_df
-    
-    time.sleep(3) 
-    return modules
-
-def load_client_dataset(org, brand):
-    """Handles the triple-fallback logic for loading datasets."""
+def load_client_dataset(organisation_slug: str, brand_slug: str) -> pd.DataFrame:
+    """
+    Loads the client dataset.
+    Tries GCS first. In development, falls back to a local file if GCS fails.
+    In production, GCS failure raises immediately with a user-visible error.
+    """
     config = load_config()
-    client_conf = config['clients'][org][brand]
-    
+    client_conf = config["clients"][organisation_slug][brand_slug]
+
     try:
-        # First Fallback: Try GCS
-        storage_client = storage.Client(project=client_conf['gcp_project_id'])
-        bucket = storage_client.get_bucket(client_conf['bucket_name'])
-        
+        storage_client = storage.Client(project=client_conf["gcp_project_id"])
+        bucket = storage_client.get_bucket(client_conf["bucket_name"])
         df = pd.read_csv(
-            io.BytesIO(bucket.blob(blob_name=client_conf['gcs_file_key']).download_as_string()),
-            encoding='UTF-8', sep=','
+            io.BytesIO(bucket.blob(blob_name=client_conf["gcs_file_key"]).download_as_string()),
+            encoding="UTF-8",
+            sep=",",
         )
-        st.success("✅ Dataset loaded from GCS!")
+        st.success("Dataset loaded from GCS.")
         return df
-    except Exception as e:
-        # Second Fallback: Local file
-        st.warning(f"⚠️ GCS Load failed: {e}. Trying local fallback...")
-        local_path = ROOT_DIR / client_conf['local_data_path']
-        if local_path.exists():
-            return pd.read_csv(local_path)
-        else:
-            raise FileNotFoundError(f"🚨 No dataset found in GCS or Local path: {local_path}")
 
-def load_client_model(org, brand):
-    """Handles the triple-fallback logic for loading Meridian models."""
-    config = load_config()
-    client_conf = config['clients'][org][brand]
-    meridian = get_meridian_resource()
-    temp_model_path = None
-    
-    try:
-        # First Fallback: Try GCS
-        storage_client = storage.Client(project=client_conf['gcp_project_id'])
-        bucket = storage_client.get_bucket(client_conf['bucket_name'])
-        blob = bucket.blob(blob_name=client_conf['gcs_model_key'])
-        pickle_bytes = blob.download_as_bytes()
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pkl") as temp_file:
-            temp_model_path = temp_file.name
-            temp_file.write(pickle_bytes)
-            
-        model = meridian.model.load_mmm(temp_model_path)
-        st.success("✅ Model loaded from GCS!")
-        return model
-        
     except Exception as e:
-        st.warning(f"⚠️ GCS Model Load failed: {e}. Trying local fallback...")
-        local_path = ROOT_DIR / client_conf['local_model_path']
-        if local_path.exists():
-            return meridian.model.load_mmm(str(local_path))
+        if _is_dev_environment():
+            st.warning(f"GCS load failed: {e}. Trying local fallback (development only)...")
+            local_path = ROOT_DIR / client_conf["local_data_path"]
+            if local_path.exists():
+                return pd.read_csv(local_path)
+            raise FileNotFoundError(
+                f"No dataset found in GCS or local path: {local_path}"
+            ) from e
         else:
-            raise FileNotFoundError(f"🚨 No model found in GCS or Local path: {local_path}")
-    finally:
-        if temp_model_path and os.path.exists(temp_model_path):
-            os.remove(temp_model_path)
+            st.error(
+                f"Failed to load dataset from GCS: {e}. "
+                "GCS is the only data source in production. "
+                "Check your GCP credentials and bucket configuration."
+            )
+            raise

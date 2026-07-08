@@ -1,6 +1,6 @@
 # Build stage - includes build tools and dependencies
 # Testing
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:0ddac20e6ed02c16bc5f3881619d4ef959427f2ffbe246db87b375b133523be3 AS builder
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
 # Set the working directory for the application.
@@ -56,5 +56,9 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Set the default command that runs when the container starts.
 EXPOSE 8501
+
+# Allow the base URL path to be overridden per app, defaulting to root
+ENV STREAMLIT_SERVER_BASE_URL_PATH=""
+
 # UPDATE: Pointed to the new app.py file
 CMD ["streamlit", "run", "code/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
